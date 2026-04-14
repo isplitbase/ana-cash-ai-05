@@ -8,12 +8,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict
 
-from app.pipeline.s3util import (
-    S3Config,
+from app.pipeline.gcsutil import (
     get_expires_in_seconds,
+    get_gcs_bucket,
     make_random_token,
     make_timestamp_jst,
-    make_s3_key,
+    make_gcs_key,
     upload_html_and_presign,
 )
 
@@ -50,7 +50,7 @@ def _download_excel(url: str, dst: Path) -> None:
 
 
 def run_html(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Cloud Run API 用の runner142 (Excel -> HTML -> S3 upload)"""
+    """Cloud Run API 用の runner142 (Excel -> HTML -> GCS upload)"""
 
     ai_case_id = payload.get("ai_case_id")
     url = str(payload.get("url") or "").strip()
@@ -79,16 +79,16 @@ def run_html(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not html_path.exists():
             raise RuntimeError("HTMLファイルが生成されませんでした。")
 
-        s3_cfg = S3Config.from_env_and_payload(payload)
+        bucket_name = get_gcs_bucket(payload)
         expires_in = get_expires_in_seconds(payload, default_seconds=3600)
-        s3_key = make_s3_key(ai_case_id, html_filename, prefix="cash-ai-05")
-        s3_key, html_url = upload_html_and_presign(html_path, s3_cfg, s3_key, expires_in)
+        gcs_key = make_gcs_key(ai_case_id, html_filename, prefix="cash-ai-05")
+        gcs_key, html_url = upload_html_and_presign(html_path, bucket_name, gcs_key, expires_in)
 
         return {
             "runner": "runner142",
             "ai_case_id": ai_case_id,
             "html_filename": html_filename,
-            "s3_key": s3_key,
+            "gcs_key": gcs_key,
             "html_url": html_url,
         }
 

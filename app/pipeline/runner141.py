@@ -8,12 +8,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict
 
-from app.pipeline.s3util import (
-    S3Config,
+from app.pipeline.gcsutil import (
     get_expires_in_seconds,
+    get_gcs_bucket,
     make_random_token,
     make_timestamp_jst,
-    make_s3_key,
+    make_gcs_key,
     upload_html_and_presign,
 )
 
@@ -56,13 +56,12 @@ def run_html(payload: Dict[str, Any]) -> Dict[str, Any]:
       {
         "ai_case_id": 8888,
         "url": "https://...signed...",
-        "s3_bucket": "...",         # payload か env
-        "s3_region": "...",         # payload か env
+        "gcs_bucket": "...",        # payload か env(GCS_BUCKET)
         "expires_in": 3600          # 任意
       }
 
     返却:
-      {"runner":"runner141", "ai_case_id":..., "html_filename":..., "s3_key":..., "html_url":...}
+      {"runner":"runner141", "ai_case_id":..., "html_filename":..., "gcs_key":..., "html_url":...}
     """
     ai_case_id = payload.get("ai_case_id")
     url = str(payload.get("url") or "").strip()
@@ -94,17 +93,17 @@ def run_html(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not html_path.exists():
             raise RuntimeError("HTMLファイルが生成されませんでした。")
 
-        # 4) S3 アップロード + 署名付きURL
-        s3_cfg = S3Config.from_env_and_payload(payload)
+        # 4) GCS アップロード + 署名付きURL
+        bucket_name = get_gcs_bucket(payload)
         expires_in = get_expires_in_seconds(payload, default_seconds=3600)
-        s3_key = make_s3_key(ai_case_id, html_filename, prefix="cash-ai-05")
-        s3_key, html_url = upload_html_and_presign(html_path, s3_cfg, s3_key, expires_in)
+        gcs_key = make_gcs_key(ai_case_id, html_filename, prefix="cash-ai-05")
+        gcs_key, html_url = upload_html_and_presign(html_path, bucket_name, gcs_key, expires_in)
 
         return {
             "runner": "runner141",
             "ai_case_id": ai_case_id,
             "html_filename": html_filename,
-            "s3_key": s3_key,
+            "gcs_key": gcs_key,
             "html_url": html_url,
         }
 
